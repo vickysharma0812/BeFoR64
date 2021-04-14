@@ -1,88 +1,213 @@
-# The target of the library BeFoR64 is exported
-# as BeFoR64::BeFoR64 to a package config file for BeFoR64
-#
-# usage:
-#     find_package(BeFoR64)
-#     ...
-#     target_link_library(<target> BeFoR64)
-#
-# the config file is generatet in the build and install directories
-
-cmake_minimum_required(VERSION 3.10...3.13)
-project(BeFoR64 VERSION 1.1.3 LANGUAGES Fortran)
-
-# seach path for additional cmake modules
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/Modules)
-
-
-# set export variables needed for building
+CMAKE_MINIMUM_REQUIRED(VERSION 3.10.0 FATAL_ERROR)
+set(PROJECT_NAME "BeFoR64")
+project(${PROJECT_NAME})
+enable_language(Fortran)
+set(VERSION_MAJOR "1")
+set(VERSION_MINOR "1")
+set(VERSION_BugFix "3")
+set(PROJECT_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_BugFix})
 set(TARGETS_EXPORT_NAME "${PROJECT_NAME}Targets")
-set(NAMESPACE "${PROJECT_NAME}::")
+set(namespace "${PROJECT_NAME}")
 
+include(CMakePrintHelpers)
+include(FortranCInterface)
+FortranCInterface_VERIFY()
 
-# generate the library and install instructions
-add_subdirectory(src/lib)
-
-if(NOT TARGET PENF)
-    add_subdirectory(src/third_party/PENF)
+# SYSTEM INFORMATION
+# Disable in-source builds to prevent source tree corruption.
+if(" ${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL " ${CMAKE_CURRENT_BINARY_DIR}")
+  message(FATAL_ERROR "
+    FATAL: In-source builds are not allowed.
+    You should create a separate directory for build files.")
 endif()
 
-# testing
-if(${PROJECT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
-    set(main_project TRUE)
+# CREATING DIRECTORIES FOR EASIFEM_BASE
+include( GNUInstallDirs )
+set(
+  CMAKE_Fortran_MODULE_DIRECTORY
+  ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_INCLUDEDIR}
+)
+set(
+  CMAKE_LIBRARY_OUTPUT_DIRECTORY
+  ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}
+)
+set(
+  CMAKE_ARCHIVE_OUTPUT_DIRECTORY
+  ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}
+)
+set(
+  CMAKE_RUNTIME_OUTPUT_DIRECTORY
+  ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}
+)
+
+set(
+  INSTALL_LIBDIR
+  ${CMAKE_INSTALL_LIBDIR}
+  CACHE PATH "install location of lib"
+)
+set(
+  INSTALL_INCLUDEDIR
+  ${CMAKE_INSTALL_INCLUDEDIR}
+  CACHE PATH "install location of include"
+)
+set(
+  INSTALL_BINDIR
+  ${CMAKE_INSTALL_BINDIR}
+  CACHE PATH "install location of bin"
+)
+
+if(WIN32 AND NOT CYGWIN)
+  set(DEF_INSTALL_CMAKEDIR CMake)
 else()
-    set(main_project FALSE)
+  set(DEF_INSTALL_CMAKEDIR share/cmake/${PROJECT_NAME})
+endif()
+set(INSTALL_CMAKEDIR ${DEF_INSTALL_CMAKEDIR} CACHE PATH "Installation directory for CMake files")
+
+foreach(p LIB BIN INCLUDE CMAKE)
+  file(TO_NATIVE_PATH ${CMAKE_INSTALL_PREFIX}/${INSTALL_${p}DIR} _path)
+  message(STATUS "Installing ${p} componenets to ${_path}")
+endforeach()
+
+option(BUILD_SHARED_LIBS "Build shared library" ON)
+if (BUILD_SHARED_LIBS)
+  message(STATUS "${PROJECT_NAME} will be built as a shared library.")
+else()
+  message(STATUS "${PROJECT_NAME} will be built as a static library.")
 endif()
 
-include(CMakeDependentOption)
-cmake_dependent_option(BUILD_TESTING_${PROJECT_NAME}
-     "Build the testing tree for project ${PROJECT_NAME}." OFF
-     "BUILD_TESTING;NOT main_project" OFF
-)
-
-if (main_project AND NOT DEFINED BUILD_TESTING)
-    set(BUILD_TESTING ON)
+# INSTALLING easifemBase
+if(BUILD_SHARED_LIBS)
+  add_library(${PROJECT_NAME} SHARED "" )
+else()
+  add_library(${PROJECT_NAME} STATIC "")
 endif()
 
-if((main_project AND BUILD_TESTING) OR BUILD_TESTING_${PROJECT_NAME})
-    enable_testing()
-    add_subdirectory(src/tests)
+# COMPILER RELATED OPTIONS
+include(${PROJECT_SOURCE_DIR}/cmake/Compiler.cmake)
+
+if( $<CONFIG:Debug> )
+  list( APPEND TARGET_COMPILE_DEF "-DDEBUG_VER" )
 endif()
 
-# generate package config files
-include(GNUInstallDirs)
-set(project_config "${PROJECT_NAME}Config.cmake")
-set(cmake_files_dir "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles")
-set(config_install_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
-set(config_build_dir "${CMAKE_CURRENT_BINARY_DIR}/${config_install_dir}")
+LIST(APPEND CMAKE_PREFIX_PATH "$ENV{EASIFEM_EXTPKGS}")
+# LIST(APPEND CMAKE_PREFIX_PATH "$ENV{EASIFEM_EXTPKGS}/share/cmake/")
+FIND_PACKAGE( PENF REQUIRED )
+IF( PENF_FOUND )
+  GET_TARGET_PROPERTY(
+    PENF_INCLUDEDIR
+    PENF::PENF
+    INTERFACE_INCLUDE_DIRECTORIES)
+  MESSAGE(STATUS "PENF found")
+ELSE()
+  MESSAGE(STATUS "PENF not found")
+ENDIF()
 
-# export targets for install
-install(EXPORT ${TARGETS_EXPORT_NAME}
-    NAMESPACE
-        ${NAMESPACE}
-    DESTINATION
-        ${config_install_dir}
-    COMPONENT Development
+###########################################
+INCLUDE(src/lib/CMakeLists.txt)
+###########################################
+
+MESSAGE(STATUS "TARGET_COMPILE_DEF: ${TARGET_COMPILE_DEF}")
+target_compile_options(
+  ${PROJECT_NAME}
+  PRIVATE
+  ${TARGET_COMPILE_OPT}
+  ${FORTRAN_FLAGS}
+  "$<$<CONFIG:Debug>:${FORTRAN_FLAGS_DEBUG}>"
+  "$<$<CONFIG:Release>:${FORTRAN_FLAGS_RELEASE}>"
 )
 
-# export targets into build
-export(EXPORT ${TARGETS_EXPORT_NAME}
-    NAMESPACE
-        ${NAMESPACE}
-    FILE
-        ${config_build_dir}/${TARGETS_EXPORT_NAME}.cmake
+target_compile_definitions(
+  ${PROJECT_NAME}
+  PUBLIC
+  ${TARGET_COMPILE_DEF}
 )
 
-#create package config
+target_link_libraries(
+  ${PROJECT_NAME}
+  PUBLIC
+  PENF::PENF
+)
+# target_compile_definitions()
+SET_TARGET_PROPERTIES(
+  ${PROJECT_NAME}
+    PROPERTIES
+    POSITION_INDEPENDENT_CODE 1
+    SOVERSION ${VERSION_MAJOR}
+    OUTPUT_NAME ${PROJECT_NAME}
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    MACOSX_RPATH ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+  ${PROJECT_NAME}
+  PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_Fortran_MODULE_DIRECTORY}>
+  $<INSTALL_INTERFACE:${INSTALL_INCLUDEDIR}>
+  "${PENF_INCLUDEDIR}"
+)
+
+INSTALL(
+  TARGETS
+    ${PROJECT_NAME}
+  EXPORT
+    ${TARGETS_EXPORT_NAME}
+  ARCHIVE
+    DESTINATION ${INSTALL_LIBDIR}
+    COMPONENT lib
+  RUNTIME
+    DESTINATION ${INSTALL_BINDIR}
+    COMPONENT bin
+  LIBRARY
+    DESTINATION ${INSTALL_LIBDIR}
+    COMPONENT lib
+)
+
+install(
+  DIRECTORY
+    ${CMAKE_Fortran_MODULE_DIRECTORY}
+    DESTINATION "./"
+    COMPONENT lib
+)
+
+install(
+  EXPORT
+    ${TARGETS_EXPORT_NAME}
+    NAMESPACE ${namespace}::
+    DESTINATION ${INSTALL_CMAKEDIR}
+    COMPONENT dev
+)
+
 include(CMakePackageConfigHelpers)
-configure_package_config_file(cmake/PackageConfig.cmake.in ${cmake_files_dir}/${project_config}
-    INSTALL_DESTINATION ${config_install_dir}
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION ${INSTALL_CMAKEDIR}
 )
-install(FILES ${cmake_files_dir}/${project_config}
-    DESTINATION ${config_install_dir}
+if(BUILD_SHARED_LIBS OR PROJECT_VERSION_MAJOR EQUAL 0)
+  # Due to the uncertain ABI compatibility of Fortran shared libraries
+  # limit compatibility for dynamic linking to same minor version.
+  set(COMPATIBILITY AnyNewerVersion)
+  # set(COMPATIBILITY SameMinorVersion)
+else()
+  # Require API compatibility via semantic versioning for static linking.
+  set(COMPATIBILITY AnyNewerVersion)
+  # set(COMPATIBILITY SameMajorVersion)
+endif()
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+  VERSION "${PROJECT_VERSION}"
+  COMPATIBILITY ${COMPATIBILITY}
 )
 
-configure_package_config_file(cmake/PackageConfig.cmake.in ${config_build_dir}/${project_config}
-    INSTALL_DESTINATION ${config_build_dir}
-    INSTALL_PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+install(
+  FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+  DESTINATION
+    ${INSTALL_CMAKEDIR}
 )
