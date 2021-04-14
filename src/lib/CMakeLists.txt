@@ -1,24 +1,8 @@
-# set type specific output defaults
-include(GNUInstallDirs)
-
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
-SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
-SET(CMAKE_Fortran_MODULE_DIRECTORY "${PROJECT_BINARY_DIR}/modules")
-
-set(LIB BeFoR64)
-add_library(${LIB}
-        befor64.F90
-        befor64_pack_data_m.F90
-)
-target_link_libraries(${LIB} PENF::PENF)
-
-
-add_library(${NAMESPACE}${LIB} ALIAS ${LIB})
-
-target_include_directories(${LIB}
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_Fortran_MODULE_DIRECTORY}>
+SET(SRC_PATH "${CMAKE_CURRENT_LIST_DIR}/")
+TARGET_SOURCES(
+    ${PROJECT_NAME} PRIVATE
+    ${SRC_PATH}/befor64.F90
+    ${SRC_PATH}/befor64_pack_data_m.F90
 )
 
 # set variables used for compile definitions of targets after support check
@@ -31,7 +15,7 @@ check_fortran_source_runs(
      R16P_SUPPORTED
      SRC_EXT f90)
 if(R16P_SUPPORTED)
-    set(r16p_supported "_R16P_SUPPORTED")
+    set(r16p_supported "-D_R16P")
 endif()
 
 check_fortran_source_runs(
@@ -42,7 +26,7 @@ check_fortran_source_runs(
     ASCII_SUPPORTED
     SRC_EXT f90)
 if(ASCII_SUPPORTED)
-    set(ascii_supported "_ASCII_SUPPORTED")
+    set(ascii_supported "-D_ASCII_SUPPORTED")
 endif()
 
 check_fortran_source_runs(
@@ -55,7 +39,7 @@ check_fortran_source_runs(
     SRC_EXT f90
 )
 if(ASCII_NEQ_DEFAULT)
-    set(ascii_neq_default "_ASCII_NEQ_DEFAULT")
+    set(ascii_neq_default "-D_ASCII_NEQ_DEFAULT")
 endif()
 
 check_fortran_source_runs(
@@ -66,33 +50,10 @@ check_fortran_source_runs(
     UCS4_SUPPORTED
     SRC_EXT f90)
 if(UCS4_SUPPORTED)
-    set(ucs4_supported "_UCS4_SUPPORTED")
+    set(ucs4_supported "-D_UCS4_SUPPORTED")
 endif()
 
-target_compile_definitions(${LIB}
-    PRIVATE
-        ${r16p_supported}
-        ${ascii_supported}
-        ${ascii_neq_default}
-        ${ucs4_supported}
-)
-
-set_target_properties(${LIB} PROPERTIES
-    VERSION
-        ${PROJECT_VERSION}
-    SOVERSION
-        ${PROJECT_VERSION_MAJOR}
-)
-
-# installation and export of targets
-install(DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY}/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
-    COMPONENT Developement
-)
-
-install(TARGETS ${LIB} EXPORT ${TARGETS_EXPORT_NAME}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT RuntimeLibraries
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT RuntimeLibraries
-    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
-)
+LIST( APPEND TARGET_COMPILE_DEF ${r16p_supported} )
+LIST( APPEND TARGET_COMPILE_DEF ${ascii_supported} )
+LIST( APPEND TARGET_COMPILE_DEF ${ascii_neq_default} )
+LIST( APPEND TARGET_COMPILE_DEF ${ucs4_supported} )
