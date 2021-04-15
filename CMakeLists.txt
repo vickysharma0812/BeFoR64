@@ -13,84 +13,85 @@ include(CMakePrintHelpers)
 include(FortranCInterface)
 FortranCInterface_VERIFY()
 
-# SYSTEM INFORMATION
 # Disable in-source builds to prevent source tree corruption.
-if(" ${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL " ${CMAKE_CURRENT_BINARY_DIR}")
-  message(FATAL_ERROR "
+IF(" ${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL " ${CMAKE_CURRENT_BINARY_DIR}")
+  MESSAGE(FATAL_ERROR "
     FATAL: In-source builds are not allowed.
     You should create a separate directory for build files.")
-endif()
+ENDIF()
 
 # CREATING DIRECTORIES FOR EASIFEM_BASE
-include( GNUInstallDirs )
-set(
+INCLUDE( GNUInstallDirs )
+SET(
   CMAKE_Fortran_MODULE_DIRECTORY
   ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_INCLUDEDIR}
 )
-set(
+SET(
   CMAKE_LIBRARY_OUTPUT_DIRECTORY
   ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}
 )
-set(
+SET(
   CMAKE_ARCHIVE_OUTPUT_DIRECTORY
   ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}
 )
-set(
+SET(
   CMAKE_RUNTIME_OUTPUT_DIRECTORY
   ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}
 )
 
-set(
+SET(
   INSTALL_LIBDIR
   ${CMAKE_INSTALL_LIBDIR}
   CACHE PATH "install location of lib"
 )
-set(
+SET(
   INSTALL_INCLUDEDIR
   ${CMAKE_INSTALL_INCLUDEDIR}
   CACHE PATH "install location of include"
 )
-set(
+SET(
   INSTALL_BINDIR
   ${CMAKE_INSTALL_BINDIR}
   CACHE PATH "install location of bin"
 )
 
-if(WIN32 AND NOT CYGWIN)
-  set(DEF_INSTALL_CMAKEDIR CMake)
-else()
-  set(DEF_INSTALL_CMAKEDIR share/cmake/${PROJECT_NAME})
-endif()
-set(INSTALL_CMAKEDIR ${DEF_INSTALL_CMAKEDIR} CACHE PATH "Installation directory for CMake files")
+IF(WIN32 AND NOT CYGWIN)
+  SET(DEF_INSTALL_CMAKEDIR CMake)
+ELSE()
+  SET(DEF_INSTALL_CMAKEDIR share/cmake/${PROJECT_NAME})
+ENDIF()
+SET(INSTALL_CMAKEDIR ${DEF_INSTALL_CMAKEDIR} CACHE PATH "Installation directory for CMake files")
 
-foreach(p LIB BIN INCLUDE CMAKE)
-  file(TO_NATIVE_PATH ${CMAKE_INSTALL_PREFIX}/${INSTALL_${p}DIR} _path)
-  message(STATUS "Installing ${p} componenets to ${_path}")
-endforeach()
+FOREACH(p LIB BIN INCLUDE CMAKE)
+  FILE(TO_NATIVE_PATH ${CMAKE_INSTALL_PREFIX}/${INSTALL_${p}DIR} _path)
+  MESSAGE(STATUS "Installing ${p} componenets to ${_path}")
+ENDFOREACH()
 
-option(BUILD_SHARED_LIBS "Build shared library" ON)
-if (BUILD_SHARED_LIBS)
-  message(STATUS "${PROJECT_NAME} will be built as a shared library.")
-else()
-  message(STATUS "${PROJECT_NAME} will be built as a static library.")
-endif()
+OPTION(BUILD_SHARED_LIBS "Build shared library" ON)
+IF (BUILD_SHARED_LIBS)
+  MESSAGE(STATUS "${PROJECT_NAME} will be built as a shared library.")
+ELSE()
+  MESSAGE(STATUS "${PROJECT_NAME} will be built as a static library.")
+ENDIF()
 
-# INSTALLING easifemBase
-if(BUILD_SHARED_LIBS)
-  add_library(${PROJECT_NAME} SHARED "" )
-else()
-  add_library(${PROJECT_NAME} STATIC "")
-endif()
+IF(BUILD_SHARED_LIBS)
+  ADD_LIBRARY(${PROJECT_NAME} SHARED "" )
+ELSE()
+  ADD_LIBRARY(${PROJECT_NAME} STATIC "")
+ENDIF()
 
 # COMPILER RELATED OPTIONS
-include(${PROJECT_SOURCE_DIR}/cmake/Compiler.cmake)
+INCLUDE(${PROJECT_SOURCE_DIR}/cmake/Compiler.cmake)
 
-if( $<CONFIG:Debug> )
-  list( APPEND TARGET_COMPILE_DEF "-DDEBUG_VER" )
-endif()
+IF( $<CONFIG:Debug> )
+  LIST( APPEND TARGET_COMPILE_DEF "-DDEBUG_VER" )
+ENDIF()
+
+###########################################
+INCLUDE(src/lib/CMakeLists.txt)
+###########################################
 
 LIST(APPEND CMAKE_PREFIX_PATH "$ENV{EASIFEM_EXTPKGS}")
-# LIST(APPEND CMAKE_PREFIX_PATH "$ENV{EASIFEM_EXTPKGS}/share/cmake/")
 FIND_PACKAGE( PENF REQUIRED )
 IF( PENF_FOUND )
   GET_TARGET_PROPERTY(
@@ -102,12 +103,7 @@ ELSE()
   MESSAGE(STATUS "PENF not found")
 ENDIF()
 
-###########################################
-INCLUDE(src/lib/CMakeLists.txt)
-###########################################
-
-MESSAGE(STATUS "TARGET_COMPILE_DEF: ${TARGET_COMPILE_DEF}")
-target_compile_options(
+TARGET_COMPILE_OPTIONS(
   ${PROJECT_NAME}
   PRIVATE
   ${TARGET_COMPILE_OPT}
@@ -116,17 +112,16 @@ target_compile_options(
   "$<$<CONFIG:Release>:${FORTRAN_FLAGS_RELEASE}>"
 )
 
-target_compile_definitions(
+TARGET_COMPILE_DEFINITIONS(
   ${PROJECT_NAME}
   PUBLIC
   ${TARGET_COMPILE_DEF}
 )
 
-target_link_libraries(
+TARGET_LINK_LIBRARIES(
   ${PROJECT_NAME}
   PUBLIC
-  PENF::PENF
-)
+  PENF::PENF)
 # target_compile_definitions()
 SET_TARGET_PROPERTIES(
   ${PROJECT_NAME}
@@ -138,16 +133,14 @@ SET_TARGET_PROPERTIES(
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     MACOSX_RPATH ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ON
-)
+    WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 TARGET_INCLUDE_DIRECTORIES(
   ${PROJECT_NAME}
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_Fortran_MODULE_DIRECTORY}>
   $<INSTALL_INTERFACE:${INSTALL_INCLUDEDIR}>
-  "${PENF_INCLUDEDIR}"
-)
+  "${PENF_INCLUDEDIR}")
 
 INSTALL(
   TARGETS
@@ -162,52 +155,46 @@ INSTALL(
     COMPONENT bin
   LIBRARY
     DESTINATION ${INSTALL_LIBDIR}
-    COMPONENT lib
-)
+    COMPONENT lib)
 
-install(
+INSTALL(
   DIRECTORY
     ${CMAKE_Fortran_MODULE_DIRECTORY}
     DESTINATION "./"
-    COMPONENT lib
-)
+    COMPONENT lib)
 
-install(
+INSTALL(
   EXPORT
     ${TARGETS_EXPORT_NAME}
     NAMESPACE ${namespace}::
     DESTINATION ${INSTALL_CMAKEDIR}
-    COMPONENT dev
-)
+    COMPONENT dev)
 
-include(CMakePackageConfigHelpers)
+INCLUDE(CMakePackageConfigHelpers)
 
-configure_package_config_file(
+CONFIGURE_PACKAGE_CONFIG_FILE(
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Config.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-  INSTALL_DESTINATION ${INSTALL_CMAKEDIR}
-)
-if(BUILD_SHARED_LIBS OR PROJECT_VERSION_MAJOR EQUAL 0)
+  INSTALL_DESTINATION ${INSTALL_CMAKEDIR})
+IF(BUILD_SHARED_LIBS OR PROJECT_VERSION_MAJOR EQUAL 0)
   # Due to the uncertain ABI compatibility of Fortran shared libraries
   # limit compatibility for dynamic linking to same minor version.
-  set(COMPATIBILITY AnyNewerVersion)
+  SET(COMPATIBILITY AnyNewerVersion)
   # set(COMPATIBILITY SameMinorVersion)
-else()
+ELSE()
   # Require API compatibility via semantic versioning for static linking.
-  set(COMPATIBILITY AnyNewerVersion)
+  SET(COMPATIBILITY AnyNewerVersion)
   # set(COMPATIBILITY SameMajorVersion)
-endif()
+ENDIF()
 
-write_basic_package_version_file(
+WRITE_BASIC_PACKAGE_VERSION_FILE(
   "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
   VERSION "${PROJECT_VERSION}"
-  COMPATIBILITY ${COMPATIBILITY}
-)
+  COMPATIBILITY ${COMPATIBILITY})
 
-install(
+INSTALL(
   FILES
     ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
   DESTINATION
-    ${INSTALL_CMAKEDIR}
-)
+    ${INSTALL_CMAKEDIR})
